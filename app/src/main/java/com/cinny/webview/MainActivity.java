@@ -301,6 +301,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void injectMarkdownTablePatch() {
+        // 這是更新過後的 JavaScript，已經移除了破壞 Code Block 的代碼，並加入防護
         String script = "(function(){" +
                 "if(window.__echoCinnyMarkdownTablePatchInstalled)return;" +
                 "window.__echoCinnyMarkdownTablePatchInstalled=true;" +
@@ -328,8 +329,27 @@ public class MainActivity extends AppCompatActivity {
                 "function parseMarkdownTable(lines){if(lines.length<2)return null;var header=splitMarkdownRow(lines[0]);var divider=splitMarkdownRow(lines[1]);if(!header||!divider)return null;if(header.length<2||divider.length!==header.length)return null;if(!divider.every(isDividerCell))return null;var rows=[];for(var i=2;i<lines.length;i++){var row=splitMarkdownRow(lines[i]);if(!row||row.length!==header.length)return null;rows.push(row);}return {header:header,rows:rows};}" +
                 "function buildTableElement(parsed){var wrap=document.createElement('div');wrap.className=TABLE_CLASS+'-wrap';var table=document.createElement('table');table.className=TABLE_CLASS;var thead=document.createElement('thead');var headerRow=document.createElement('tr');parsed.header.forEach(function(cell){var th=document.createElement('th');th.innerHTML=escapeHtml(cell);headerRow.appendChild(th);});thead.appendChild(headerRow);table.appendChild(thead);var tbody=document.createElement('tbody');parsed.rows.forEach(function(row){var tr=document.createElement('tr');row.forEach(function(cell){var td=document.createElement('td');td.innerHTML=escapeHtml(cell);tr.appendChild(td);});tbody.appendChild(tr);});table.appendChild(tbody);wrap.appendChild(table);return wrap;}" +
                 "function looksLikeCodeBlock(text){return text.indexOf('```')!==-1;}" +
-                "function findCodeBlockAncestor(el){var current=el;for(var i=0;i<6&&current;i++){var text=(current.innerText||current.textContent||'').trim();if(/^Code\\s+/m.test(text)||/\\bCopy\\b/.test(text))return current;current=current.parentElement;}return null;}" +
-                "function processElement(el){if(!el||el.getAttribute(PROCESSED_ATTR)==='1')return;if(el.querySelector('table.'+TABLE_CLASS)){el.setAttribute(PROCESSED_ATTR,'1');return;}var text=el.innerText||el.textContent||'';if(text.indexOf('|')===-1||text.indexOf('\\n')===-1||looksLikeCodeBlock(text)){el.setAttribute(PROCESSED_ATTR,'1');return;}var lines=text.split(/\\r?\\n/).map(function(line){return line.trim();}).filter(Boolean).filter(function(line){return line!=='Code'&&line!=='Copy';});var parsed=parseMarkdownTable(lines);if(!parsed){el.setAttribute(PROCESSED_ATTR,'1');return;}var tableWrap=buildTableElement(parsed);var codeBlockAncestor=findCodeBlockAncestor(el);if(codeBlockAncestor&&codeBlockAncestor.parentElement){codeBlockAncestor.replaceWith(tableWrap);}else{el.innerHTML='';el.appendChild(tableWrap);el.setAttribute(PROCESSED_ATTR,'1');}tableWrap.setAttribute(PROCESSED_ATTR,'1');}" +
+                // 完全移除了 findCodeBlockAncestor 函數
+                "function processElement(el){" +
+                "  if(!el||el.getAttribute(PROCESSED_ATTR)==='1')return;" +
+                // 【新增安全機制】：如果是被包在 pre 或 code 標籤裡的內容，直接跳過，保證不碰到 Code Block
+                "  if(el.closest && (el.closest('pre') || el.closest('code'))) {" +
+                "    el.setAttribute(PROCESSED_ATTR, '1');" +
+                "    return;" +
+                "  }" +
+                "  if(el.querySelector('table.'+TABLE_CLASS)){el.setAttribute(PROCESSED_ATTR,'1');return;}" +
+                "  var text=el.innerText||el.textContent||'';" +
+                "  if(text.indexOf('|')===-1||text.indexOf('\\n')===-1||looksLikeCodeBlock(text)){" +
+                "    el.setAttribute(PROCESSED_ATTR,'1');return;" +
+                "  }" +
+                "  var lines=text.split(/\\r?\\n/).map(function(line){return line.trim();}).filter(Boolean);" +
+                "  var parsed=parseMarkdownTable(lines);" +
+                "  if(!parsed){el.setAttribute(PROCESSED_ATTR,'1');return;}" +
+                // 只有完全符合表格格式的普通文字節點才會被替換
+                "  el.innerHTML='';" +
+                "  el.appendChild(buildTableElement(parsed));" +
+                "  el.setAttribute(PROCESSED_ATTR,'1');" +
+                "}" +
                 "function scan(){document.querySelectorAll('p,div,span,article').forEach(processElement);}" +
                 "function boot(){injectStyles();scan();var observer=new MutationObserver(function(){scan();});observer.observe(document.body,{childList:true,subtree:true});}" +
                 "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot,{once:true});}else{boot();}" +
