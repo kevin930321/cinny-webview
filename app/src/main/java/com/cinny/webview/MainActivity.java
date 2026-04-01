@@ -212,6 +212,17 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition,
                                         String mimeType, long contentLength) {
+                // For Android 10 (API 29) and below, we need WRITE_EXTERNAL_STORAGE
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(MainActivity.this,
+                                new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+                        Toast.makeText(MainActivity.this, "請授予儲存權限以開始下載", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
                 try {
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
@@ -238,9 +249,15 @@ public class MainActivity extends AppCompatActivity {
                                 Toast.LENGTH_SHORT).show();
                     }
                 } catch (Exception e) {
-                    // Fallback to browser download
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                    startActivity(intent);
+                    e.printStackTrace();
+                    Toast.makeText(MainActivity.this, "下載失敗: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    // Fallback to browser download if applicable
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        startActivity(intent);
+                    } catch (ActivityNotFoundException ae) {
+                        Toast.makeText(MainActivity.this, "找不到可用的瀏覽器開啟連結", Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         });
@@ -318,6 +335,12 @@ public class MainActivity extends AppCompatActivity {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
             }
         }
 
