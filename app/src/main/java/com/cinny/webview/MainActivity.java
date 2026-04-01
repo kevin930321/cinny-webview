@@ -357,6 +357,8 @@ public class MainActivity extends AppCompatActivity {
             "    return { header: header, rows: rows };" +
             "  }" +
             "  function buildTableElement(parsed) {" +
+            "    var outer = document.createElement('div');" +
+            "    outer.style.cssText = 'display:flex;justify-content:center;width:100%;';" +
             "    var wrap = document.createElement('div');" +
             "    wrap.className = TABLE_CLASS + '-wrap';" +
             "    var table = document.createElement('table');" +
@@ -384,7 +386,8 @@ public class MainActivity extends AppCompatActivity {
             "    });" +
             "    table.appendChild(tbody);" +
             "    wrap.appendChild(table);" +
-            "    return wrap;" +
+            "    outer.appendChild(wrap);" +
+            "    return outer;" +
             "  }" +
             "  function processElement(el) {" +
             "    if (!el || el.getAttribute(PROCESSED_ATTR) === '1') return;" +
