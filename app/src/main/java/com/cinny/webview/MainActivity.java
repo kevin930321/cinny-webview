@@ -408,6 +408,15 @@ public class MainActivity extends AppCompatActivity {
             "    el.style.margin = '0';" +
             "    el.style.boxSizing = 'border-box';" +
             "    el.style.overflowX = 'auto';" +
+            "    var p = el.parentElement;" +
+            "    for (var pi = 0; pi < 4 && p && p !== document.body; pi++) {" +
+            "      var cs = getComputedStyle(p);" +
+            "      if (cs.paddingLeft !== '0px' || cs.paddingRight !== '0px') {" +
+            "        p.style.paddingLeft = '0';" +
+            "        p.style.paddingRight = '0';" +
+            "      }" +
+            "      p = p.parentElement;" +
+            "    }" +
             "    el.appendChild(buildTableElement(parsed));" +
             "    el.setAttribute(PROCESSED_ATTR, '1');" +
             "  }" +
