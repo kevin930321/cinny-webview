@@ -402,9 +402,11 @@ public class MainActivity extends AppCompatActivity {
             "    var parsed = parseMarkdownTable(lines);" +
             "    if (!parsed) { el.setAttribute(PROCESSED_ATTR, '1'); return; }" +
             "    el.innerHTML = '';" +
-            "    el.style.display = 'flex';" +
-            "    el.style.justifyContent = 'center';" +
+            "    el.style.display = 'block';" +
             "    el.style.width = '100%';" +
+            "    el.style.padding = '0';" +
+            "    el.style.margin = '0';" +
+            "    el.style.boxSizing = 'border-box';" +
             "    el.style.overflowX = 'auto';" +
             "    el.appendChild(buildTableElement(parsed));" +
             "    el.setAttribute(PROCESSED_ATTR, '1');" +
