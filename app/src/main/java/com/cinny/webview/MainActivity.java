@@ -308,6 +308,24 @@ public class MainActivity extends AppCompatActivity {
     private void requestAppPermissions() {
         List<String> permissionsNeeded = new ArrayList<>();
 
+        // Battery optimization request
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            String packageName = getPackageName();
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                Intent intent = new Intent();
+                intent.setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + packageName));
+                try {
+                    startActivity(intent);
+                } catch (ActivityNotFoundException e) {
+                    // Fallback to general battery settings
+                    Intent settingsIntent = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                    startActivity(settingsIntent);
+                }
+            }
+        }
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             permissionsNeeded.add(Manifest.permission.CAMERA);
@@ -369,16 +387,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (webView != null) {
-            webView.onResume();
-        }
+        // Removed webView.onResume() to prevent background freezing
     }
 
     @Override
     protected void onPause() {
-        if (webView != null) {
-            webView.onPause();
-        }
+        // Removed webView.onPause() to keep WebView alive in background
         super.onPause();
     }
 
