@@ -124,6 +124,12 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                injectMarkdownTablePatch();
+            }
         });
 
         // WebChromeClient - handle file uploads, permissions
@@ -288,6 +294,44 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void injectMarkdownTablePatch() {
+        String script = "(function(){" +
+                "if(window.__echoCinnyMarkdownTablePatchInstalled)return;" +
+                "window.__echoCinnyMarkdownTablePatchInstalled=true;" +
+                "var STYLE_ID='echo-cinny-markdown-table-style';" +
+                "var PROCESSED_ATTR='data-echo-md-table-processed';" +
+                "var TABLE_CLASS='echo-md-table';" +
+                "function injectStyles(){" +
+                "if(document.getElementById(STYLE_ID))return;" +
+                "var style=document.createElement('style');" +
+                "style.id=STYLE_ID;" +
+                "style.textContent='" +
+                "." + TABLE_CLASS + "-wrap{display:block;width:fit-content;max-width:100%;overflow-x:auto;margin:0.55em auto;border:1px solid rgba(127,127,127,0.18);border-radius:12px;background:rgba(127,127,127,0.05);box-shadow:0 2px 12px rgba(0,0,0,0.10);}" +
+                "table." + TABLE_CLASS + "{width:auto;min-width:320px;margin:0 auto;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:0.95em;line-height:1.5;overflow:hidden;}" +
+                "table." + TABLE_CLASS + " th,table." + TABLE_CLASS + " td{text-align:center !important;border-right:1px solid rgba(127,127,127,0.18);border-bottom:1px solid rgba(127,127,127,0.18);padding:0.65em 0.9em;vertical-align:middle;white-space:normal;word-break:break-word;}" +
+                "table." + TABLE_CLASS + " th:last-child,table." + TABLE_CLASS + " td:last-child{border-right:none;}" +
+                "table." + TABLE_CLASS + " tbody tr:last-child td{border-bottom:none;}" +
+                "table." + TABLE_CLASS + " th{font-weight:700;background:rgba(127,127,127,0.12);}" +
+                "table." + TABLE_CLASS + " tbody tr:nth-child(even) td{background:rgba(127,127,127,0.045);}" +
+                "table." + TABLE_CLASS + " tbody tr:hover td{background:rgba(127,127,127,0.08);}';" +
+                "document.head.appendChild(style);" +
+                "}" +
+                "function escapeHtml(text){return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\\"/g,'&quot;').replace(/'/g,'&#39;');}" +
+                "function splitMarkdownRow(line){var trimmed=line.trim();if(trimmed.indexOf('|')===-1)return null;if(trimmed.startsWith('|'))trimmed=trimmed.slice(1);if(trimmed.endsWith('|'))trimmed=trimmed.slice(0,-1);return trimmed.split('|').map(function(cell){return cell.trim();});}" +
+                "function isDividerCell(cell){return /^:?-{3,}:?$/.test(cell);}" +
+                "function parseMarkdownTable(lines){if(lines.length<2)return null;var header=splitMarkdownRow(lines[0]);var divider=splitMarkdownRow(lines[1]);if(!header||!divider)return null;if(header.length<2||divider.length!==header.length)return null;if(!divider.every(isDividerCell))return null;var rows=[];for(var i=2;i<lines.length;i++){var row=splitMarkdownRow(lines[i]);if(!row||row.length!==header.length)return null;rows.push(row);}return {header:header,rows:rows};}" +
+                "function buildTableElement(parsed){var wrap=document.createElement('div');wrap.className=TABLE_CLASS+'-wrap';var table=document.createElement('table');table.className=TABLE_CLASS;var thead=document.createElement('thead');var headerRow=document.createElement('tr');parsed.header.forEach(function(cell){var th=document.createElement('th');th.innerHTML=escapeHtml(cell);headerRow.appendChild(th);});thead.appendChild(headerRow);table.appendChild(thead);var tbody=document.createElement('tbody');parsed.rows.forEach(function(row){var tr=document.createElement('tr');row.forEach(function(cell){var td=document.createElement('td');td.innerHTML=escapeHtml(cell);tr.appendChild(td);});tbody.appendChild(tr);});table.appendChild(tbody);wrap.appendChild(table);return wrap;}" +
+                "function looksLikeCodeBlock(text){return text.indexOf('```')!==-1;}" +
+                "function findCodeBlockAncestor(el){var current=el;for(var i=0;i<6&&current;i++){var text=(current.innerText||current.textContent||'').trim();if(/^Code\\s+/m.test(text)||/\\bCopy\\b/.test(text))return current;current=current.parentElement;}return null;}" +
+                "function processElement(el){if(!el||el.getAttribute(PROCESSED_ATTR)==='1')return;if(el.querySelector('table.'+TABLE_CLASS)){el.setAttribute(PROCESSED_ATTR,'1');return;}var text=el.innerText||el.textContent||'';if(text.indexOf('|')===-1||text.indexOf('\\n')===-1||looksLikeCodeBlock(text)){el.setAttribute(PROCESSED_ATTR,'1');return;}var lines=text.split(/\\r?\\n/).map(function(line){return line.trim();}).filter(Boolean).filter(function(line){return line!=='Code'&&line!=='Copy';});var parsed=parseMarkdownTable(lines);if(!parsed){el.setAttribute(PROCESSED_ATTR,'1');return;}var tableWrap=buildTableElement(parsed);var codeBlockAncestor=findCodeBlockAncestor(el);if(codeBlockAncestor&&codeBlockAncestor.parentElement){codeBlockAncestor.replaceWith(tableWrap);}else{el.innerHTML='';el.appendChild(tableWrap);el.setAttribute(PROCESSED_ATTR,'1');}tableWrap.setAttribute(PROCESSED_ATTR,'1');}" +
+                "function scan(){document.querySelectorAll('p,div,span,article').forEach(processElement);}" +
+                "function boot(){injectStyles();scan();var observer=new MutationObserver(function(){scan();});observer.observe(document.body,{childList:true,subtree:true});}" +
+                "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot,{once:true});}else{boot();}" +
+                "})();";
+
+        webView.evaluateJavascript(script, null);
     }
 
     private void downloadBlob(String blobUrl, String fileName, String mimeType) {
