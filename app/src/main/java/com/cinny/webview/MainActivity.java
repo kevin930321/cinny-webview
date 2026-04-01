@@ -358,7 +358,7 @@ public class MainActivity extends AppCompatActivity {
             "  }" +
             "  function buildTableElement(parsed) {" +
             "    var outer = document.createElement('div');" +
-            "    outer.style.cssText = 'display:flex;justify-content:center;width:100%;';" +
+            "    outer.style.cssText = 'display:flex;justify-content:center;align-items:center;align-self:center;width:100%;margin:10px auto;clear:both;';" +
             "    var wrap = document.createElement('div');" +
             "    wrap.className = TABLE_CLASS + '-wrap';" +
             "    var table = document.createElement('table');" +
@@ -402,11 +402,15 @@ public class MainActivity extends AppCompatActivity {
             "    var parsed = parseMarkdownTable(lines);" +
             "    if (!parsed) { el.setAttribute(PROCESSED_ATTR, '1'); return; }" +
             "    el.innerHTML = '';" +
+            "    el.style.display = 'flex';" +
+            "    el.style.justifyContent = 'center';" +
+            "    el.style.width = '100%';" +
+            "    el.style.overflowX = 'auto';" +
             "    el.appendChild(buildTableElement(parsed));" +
             "    el.setAttribute(PROCESSED_ATTR, '1');" +
             "  }" +
             "  function scan() {" +
-            "    document.querySelectorAll('p, div, span, article').forEach(processElement);" +
+            "    document.querySelectorAll('pre, code, p, div, span, article').forEach(processElement);" +
             "  }" +
             "  function boot() {" +
             "    injectStyles();" +
