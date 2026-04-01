@@ -309,12 +309,12 @@ public class MainActivity extends AppCompatActivity {
             "    style.id = STYLE_ID;" +
             "    style.textContent = " +
             "      '.' + TABLE_CLASS + '-wrap {'" +
-            "      + ' display: block; width: fit-content; max-width: 100%; overflow-x: auto;'" +
-            "      + ' margin: 0.55em auto; border: 1px solid rgba(127,127,127,0.18);'" +
-            "      + ' border-radius: 12px; background: rgba(127,127,127,0.05);'" +
-            "      + ' box-shadow: 0 2px 12px rgba(0,0,0,0.10); }'" +
-            "      + 'table.' + TABLE_CLASS + ' { width: auto; min-width: 320px; margin: 0 auto;'" +
-            "      + ' table-layout: fixed; border-collapse: separate; border-spacing: 0;'" +
+            "      + ' display: block; width: 100%; overflow-x: auto;'" +
+            "      + ' margin: 0; border: none;'" +
+            "      + ' border-radius: 0; background: transparent;'" +
+            "      + ' box-shadow: none; }'" +
+            "      + 'table.' + TABLE_CLASS + ' { width: 100%; margin: 0;'" +
+            "      + ' table-layout: fixed; border-collapse: collapse; border-spacing: 0;'" +
             "      + ' font-size: 0.95em; line-height: 1.5; overflow: hidden; }'" +
             "      + 'table.' + TABLE_CLASS + ' th, table.' + TABLE_CLASS + ' td {'" +
             "      + ' border-right: 1px solid rgba(127,127,127,0.18);'" +
@@ -324,7 +324,7 @@ public class MainActivity extends AppCompatActivity {
             "      + 'table.' + TABLE_CLASS + ' th:last-child, table.' + TABLE_CLASS + ' td:last-child { border-right: none; }'" +
             "      + 'table.' + TABLE_CLASS + ' tbody tr:last-child td { border-bottom: none; }'" +
             "      + 'table.' + TABLE_CLASS + ' th { font-weight: 700; text-align: center;'" +
-            "      + ' background: rgba(127,127,127,0.12); backdrop-filter: blur(6px); }'" +
+            "      + ' background: rgba(127,127,127,0.12); }'" +
             "      + 'table.' + TABLE_CLASS + ' tbody tr:nth-child(even) td { background: rgba(127,127,127,0.045); }'" +
             "      + 'table.' + TABLE_CLASS + ' tbody tr:hover td { background: rgba(127,127,127,0.08); }';" +
             "    document.head.appendChild(style);" +
@@ -358,7 +358,7 @@ public class MainActivity extends AppCompatActivity {
             "  }" +
             "  function buildTableElement(parsed) {" +
             "    var outer = document.createElement('div');" +
-            "    outer.style.cssText = 'display:flex;justify-content:center;align-items:center;align-self:center;width:100%;margin:10px auto;clear:both;';" +
+            "    outer.style.cssText = 'display:block;width:100%;margin:0;padding:0;clear:both;';" +
             "    var wrap = document.createElement('div');" +
             "    wrap.className = TABLE_CLASS + '-wrap';" +
             "    var table = document.createElement('table');" +
