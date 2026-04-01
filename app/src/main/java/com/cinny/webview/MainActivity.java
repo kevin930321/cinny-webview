@@ -51,10 +51,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
     private static final int PERMISSION_REQUEST_CODE = 1002;
 
-    private static final String STYLE_ID = "echo-cinny-markdown-table-style";
-    private static final String PROCESSED_ATTR = "data-echo-md-table-processed";
-    private static final String TABLE_CLASS = "echo-md-table";
-
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private String cameraPhotoPath;
@@ -132,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                injectMarkdownTablePatch();
+                injectMarkdownTableScript(view);
             }
         });
 
@@ -300,62 +296,130 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void injectMarkdownTablePatch() {
-        // 這是更新過後的 JavaScript，已經移除了破壞 Code Block 的代碼，並加入防護
-        String script = "(function(){" +
-                "if(window.__echoCinnyMarkdownTablePatchInstalled)return;" +
-                "window.__echoCinnyMarkdownTablePatchInstalled=true;" +
-                "var STYLE_ID='echo-cinny-markdown-table-style';" +
-                "var PROCESSED_ATTR='data-echo-md-table-processed';" +
-                "var TABLE_CLASS='echo-md-table';" +
-                "function injectStyles(){" +
-                "if(document.getElementById(STYLE_ID))return;" +
-                "var style=document.createElement('style');" +
-                "style.id=STYLE_ID;" +
-                "style.textContent='" +
-                "." + TABLE_CLASS + "-wrap{display:block;width:fit-content;max-width:100%;overflow-x:auto;margin:0.55em auto;border:1px solid rgba(127,127,127,0.18);border-radius:12px;background:rgba(127,127,127,0.05);box-shadow:0 2px 12px rgba(0,0,0,0.10);}" +
-                "table." + TABLE_CLASS + "{width:auto;min-width:320px;margin:0 auto;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:0.95em;line-height:1.5;overflow:hidden;}" +
-                "table." + TABLE_CLASS + " th,table." + TABLE_CLASS + " td{text-align:center !important;border-right:1px solid rgba(127,127,127,0.18);border-bottom:1px solid rgba(127,127,127,0.18);padding:0.65em 0.9em;vertical-align:middle;white-space:normal;word-break:break-word;}" +
-                "table." + TABLE_CLASS + " th:last-child,table." + TABLE_CLASS + " td:last-child{border-right:none;}" +
-                "table." + TABLE_CLASS + " tbody tr:last-child td{border-bottom:none;}" +
-                "table." + TABLE_CLASS + " th{font-weight:700;background:rgba(127,127,127,0.12);}" +
-                "table." + TABLE_CLASS + " tbody tr:nth-child(even) td{background:rgba(127,127,127,0.045);}" +
-                "table." + TABLE_CLASS + " tbody tr:hover td{background:rgba(127,127,127,0.08);}';" +
-                "document.head.appendChild(style);" +
-                "}" +
-                "function escapeHtml(text){return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\\"/g,'&quot;').replace(/'/g,'&#39;');}" +
-                "function splitMarkdownRow(line){var trimmed=line.trim();if(trimmed.indexOf('|')===-1)return null;if(trimmed.startsWith('|'))trimmed=trimmed.slice(1);if(trimmed.endsWith('|'))trimmed=trimmed.slice(0,-1);return trimmed.split('|').map(function(cell){return cell.trim();});}" +
-                "function isDividerCell(cell){return /^:?-{3,}:?$/.test(cell);}" +
-                "function parseMarkdownTable(lines){if(lines.length<2)return null;var header=splitMarkdownRow(lines[0]);var divider=splitMarkdownRow(lines[1]);if(!header||!divider)return null;if(header.length<2||divider.length!==header.length)return null;if(!divider.every(isDividerCell))return null;var rows=[];for(var i=2;i<lines.length;i++){var row=splitMarkdownRow(lines[i]);if(!row||row.length!==header.length)return null;rows.push(row);}return {header:header,rows:rows};}" +
-                "function buildTableElement(parsed){var wrap=document.createElement('div');wrap.className=TABLE_CLASS+'-wrap';var table=document.createElement('table');table.className=TABLE_CLASS;var thead=document.createElement('thead');var headerRow=document.createElement('tr');parsed.header.forEach(function(cell){var th=document.createElement('th');th.innerHTML=escapeHtml(cell);headerRow.appendChild(th);});thead.appendChild(headerRow);table.appendChild(thead);var tbody=document.createElement('tbody');parsed.rows.forEach(function(row){var tr=document.createElement('tr');row.forEach(function(cell){var td=document.createElement('td');td.innerHTML=escapeHtml(cell);tr.appendChild(td);});tbody.appendChild(tr);});table.appendChild(tbody);wrap.appendChild(table);return wrap;}" +
-                "function looksLikeCodeBlock(text){return text.indexOf('```')!==-1;}" +
-                // 完全移除了 findCodeBlockAncestor 函數
-                "function processElement(el){" +
-                "  if(!el||el.getAttribute(PROCESSED_ATTR)==='1')return;" +
-                // 【新增安全機制】：如果是被包在 pre 或 code 標籤裡的內容，直接跳過，保證不碰到 Code Block
-                "  if(el.closest && (el.closest('pre') || el.closest('code'))) {" +
-                "    el.setAttribute(PROCESSED_ATTR, '1');" +
-                "    return;" +
-                "  }" +
-                "  if(el.querySelector('table.'+TABLE_CLASS)){el.setAttribute(PROCESSED_ATTR,'1');return;}" +
-                "  var text=el.innerText||el.textContent||'';" +
-                "  if(text.indexOf('|')===-1||text.indexOf('\\n')===-1||looksLikeCodeBlock(text)){" +
-                "    el.setAttribute(PROCESSED_ATTR,'1');return;" +
-                "  }" +
-                "  var lines=text.split(/\\r?\\n/).map(function(line){return line.trim();}).filter(Boolean);" +
-                "  var parsed=parseMarkdownTable(lines);" +
-                "  if(!parsed){el.setAttribute(PROCESSED_ATTR,'1');return;}" +
-                // 只有完全符合表格格式的普通文字節點才會被替換
-                "  el.innerHTML='';" +
-                "  el.appendChild(buildTableElement(parsed));" +
-                "  el.setAttribute(PROCESSED_ATTR,'1');" +
-                "}" +
-                "function scan(){document.querySelectorAll('p,div,span,article').forEach(processElement);}" +
-                "function boot(){injectStyles();scan();var observer=new MutationObserver(function(){scan();});observer.observe(document.body,{childList:true,subtree:true});}" +
-                "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot,{once:true});}else{boot();}" +
-                "})();";
-
-        webView.evaluateJavascript(script, null);
+    private void injectMarkdownTableScript(WebView view) {
+        String js =
+            "(function () {" +
+            "  'use strict';" +
+            "  var STYLE_ID = 'echo-cinny-markdown-table-style';" +
+            "  var PROCESSED_ATTR = 'data-echo-md-table-processed';" +
+            "  var TABLE_CLASS = 'echo-md-table';" +
+            "  function injectStyles() {" +
+            "    if (document.getElementById(STYLE_ID)) return;" +
+            "    var style = document.createElement('style');" +
+            "    style.id = STYLE_ID;" +
+            "    style.textContent = " +
+            "      '.' + TABLE_CLASS + '-wrap {'" +
+            "      + ' display: block; width: fit-content; max-width: 100%; overflow-x: auto;'" +
+            "      + ' margin: 0.55em auto; border: 1px solid rgba(127,127,127,0.18);'" +
+            "      + ' border-radius: 12px; background: rgba(127,127,127,0.05);'" +
+            "      + ' box-shadow: 0 2px 12px rgba(0,0,0,0.10); }'" +
+            "      + 'table.' + TABLE_CLASS + ' { width: auto; min-width: 320px; margin: 0 auto;'" +
+            "      + ' table-layout: fixed; border-collapse: separate; border-spacing: 0;'" +
+            "      + ' font-size: 0.95em; line-height: 1.5; overflow: hidden; }'" +
+            "      + 'table.' + TABLE_CLASS + ' th, table.' + TABLE_CLASS + ' td {'" +
+            "      + ' border-right: 1px solid rgba(127,127,127,0.18);'" +
+            "      + ' border-bottom: 1px solid rgba(127,127,127,0.18);'" +
+            "      + ' padding: 0.65em 0.9em; vertical-align: middle;'" +
+            "      + ' text-align: center !important; white-space: normal; word-break: break-word; }'" +
+            "      + 'table.' + TABLE_CLASS + ' th:last-child, table.' + TABLE_CLASS + ' td:last-child { border-right: none; }'" +
+            "      + 'table.' + TABLE_CLASS + ' tbody tr:last-child td { border-bottom: none; }'" +
+            "      + 'table.' + TABLE_CLASS + ' th { font-weight: 700; text-align: center;'" +
+            "      + ' background: rgba(127,127,127,0.12); backdrop-filter: blur(6px); }'" +
+            "      + 'table.' + TABLE_CLASS + ' tbody tr:nth-child(even) td { background: rgba(127,127,127,0.045); }'" +
+            "      + 'table.' + TABLE_CLASS + ' tbody tr:hover td { background: rgba(127,127,127,0.08); }';" +
+            "    document.head.appendChild(style);" +
+            "  }" +
+            "  function escapeHtml(text) {" +
+            "    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')" +
+            "               .replace(/\"/g,'&quot;').replace(/'/g,'&#39;');" +
+            "  }" +
+            "  function splitMarkdownRow(line) {" +
+            "    var trimmed = line.trim();" +
+            "    if (!trimmed.includes('|')) return null;" +
+            "    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);" +
+            "    if (trimmed.endsWith('|')) trimmed = trimmed.slice(0,-1);" +
+            "    return trimmed.split('|').map(function(c){ return c.trim(); });" +
+            "  }" +
+            "  function isDividerCell(cell) { return /^:?-{3,}:?$/.test(cell); }" +
+            "  function parseMarkdownTable(lines) {" +
+            "    if (lines.length < 2) return null;" +
+            "    var header = splitMarkdownRow(lines[0]);" +
+            "    var divider = splitMarkdownRow(lines[1]);" +
+            "    if (!header || !divider) return null;" +
+            "    if (header.length < 2 || divider.length !== header.length) return null;" +
+            "    if (!divider.every(isDividerCell)) return null;" +
+            "    var rows = [];" +
+            "    for (var i = 2; i < lines.length; i++) {" +
+            "      var row = splitMarkdownRow(lines[i]);" +
+            "      if (!row || row.length !== header.length) return null;" +
+            "      rows.push(row);" +
+            "    }" +
+            "    return { header: header, rows: rows };" +
+            "  }" +
+            "  function buildTableElement(parsed) {" +
+            "    var wrap = document.createElement('div');" +
+            "    wrap.className = TABLE_CLASS + '-wrap';" +
+            "    var table = document.createElement('table');" +
+            "    table.className = TABLE_CLASS;" +
+            "    var thead = document.createElement('thead');" +
+            "    var headerRow = document.createElement('tr');" +
+            "    parsed.header.forEach(function(cell) {" +
+            "      var th = document.createElement('th');" +
+            "      th.innerHTML = escapeHtml(cell);" +
+            "      th.style.textAlign = 'center';" +
+            "      headerRow.appendChild(th);" +
+            "    });" +
+            "    thead.appendChild(headerRow);" +
+            "    table.appendChild(thead);" +
+            "    var tbody = document.createElement('tbody');" +
+            "    parsed.rows.forEach(function(row) {" +
+            "      var tr = document.createElement('tr');" +
+            "      row.forEach(function(cell) {" +
+            "        var td = document.createElement('td');" +
+            "        td.innerHTML = escapeHtml(cell);" +
+            "        td.style.textAlign = 'center';" +
+            "        tr.appendChild(td);" +
+            "      });" +
+            "      tbody.appendChild(tr);" +
+            "    });" +
+            "    table.appendChild(tbody);" +
+            "    wrap.appendChild(table);" +
+            "    return wrap;" +
+            "  }" +
+            "  function processElement(el) {" +
+            "    if (!el || el.getAttribute(PROCESSED_ATTR) === '1') return;" +
+            "    if (el.querySelector('table.' + TABLE_CLASS)) {" +
+            "      el.setAttribute(PROCESSED_ATTR, '1'); return;" +
+            "    }" +
+            "    var text = el.innerText || el.textContent || '';" +
+            "    if (!text.includes('|') || !text.includes('\\n') || text.includes('```')) {" +
+            "      el.setAttribute(PROCESSED_ATTR, '1'); return;" +
+            "    }" +
+            "    var lines = text.split(/\\r?\\n/).map(function(l){ return l.trim(); }).filter(Boolean);" +
+            "    var parsed = parseMarkdownTable(lines);" +
+            "    if (!parsed) { el.setAttribute(PROCESSED_ATTR, '1'); return; }" +
+            "    el.innerHTML = '';" +
+            "    el.appendChild(buildTableElement(parsed));" +
+            "    el.setAttribute(PROCESSED_ATTR, '1');" +
+            "  }" +
+            "  function scan() {" +
+            "    document.querySelectorAll('p, div, span, article').forEach(processElement);" +
+            "  }" +
+            "  function boot() {" +
+            "    injectStyles();" +
+            "    scan();" +
+            "    if (window.__echoMdTableObserver) return;" +
+            "    var observer = new MutationObserver(function() { scan(); });" +
+            "    observer.observe(document.body, { childList: true, subtree: true });" +
+            "    window.__echoMdTableObserver = observer;" +
+            "  }" +
+            "  if (document.readyState === 'loading') {" +
+            "    document.addEventListener('DOMContentLoaded', boot, { once: true });" +
+            "  } else {" +
+            "    boot();" +
+            "  }" +
+            "})();";
+        view.evaluateJavascript(js, null);
     }
 
     private void downloadBlob(String blobUrl, String fileName, String mimeType) {
