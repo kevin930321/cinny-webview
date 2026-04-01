@@ -51,6 +51,10 @@ public class MainActivity extends AppCompatActivity {
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
     private static final int PERMISSION_REQUEST_CODE = 1002;
 
+    private static final String STYLE_ID = "echo-cinny-markdown-table-style";
+    private static final String PROCESSED_ATTR = "data-echo-md-table-processed";
+    private static final String TABLE_CLASS = "echo-md-table";
+
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private String cameraPhotoPath;
