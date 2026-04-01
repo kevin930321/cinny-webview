@@ -8,12 +8,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.content.ContentValues;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Base64;
+import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
@@ -23,6 +27,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -47,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private String cameraPhotoPath;
+    private String pendingBlobFileName = "download";
+    private String pendingBlobMimeType = "application/octet-stream";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,6 +103,8 @@ public class MainActivity extends AppCompatActivity {
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+        webView.addJavascriptInterface(new BlobDownloadInterface(), "AndroidBlobDownloader");
 
         // WebViewClient - handle navigation
         webView.setWebViewClient(new WebViewClient() {
@@ -224,8 +235,23 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
+                    if (fileName == null || fileName.trim().isEmpty()) {
+                        fileName = "download_" + System.currentTimeMillis();
+                    }
+                    if (mimeType == null || mimeType.trim().isEmpty()) {
+                        mimeType = "application/octet-stream";
+                    }
+
+                    if (url.startsWith("blob:")) {
+                        pendingBlobFileName = fileName;
+                        pendingBlobMimeType = mimeType;
+                        downloadBlob(url, fileName, mimeType);
+                        Toast.makeText(MainActivity.this, "正在處理下載...", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     request.setTitle(fileName);
                     request.setDescription("下載中...");
                     request.setNotificationVisibility(
@@ -244,12 +270,13 @@ public class MainActivity extends AppCompatActivity {
                     DownloadManager downloadManager =
                             (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                     if (downloadManager != null) {
-                        downloadManager.enqueue(request);
+                        long downloadId = downloadManager.enqueue(request);
                         Toast.makeText(MainActivity.this, "開始下載: " + fileName,
                                 Toast.LENGTH_SHORT).show();
+                        Log.d("CinnyWebView", "Download started with ID: " + downloadId + " URL: " + url);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e("CinnyWebView", "Download Error: " + e.getMessage(), e);
                     Toast.makeText(MainActivity.this, "下載失敗: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     // Fallback to browser download if applicable
                     try {
@@ -261,6 +288,93 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void downloadBlob(String blobUrl, String fileName, String mimeType) {
+        String safeFileName = fileName.replace("'", "\\'");
+        String script = "(function() {" +
+                "var xhr = new XMLHttpRequest();" +
+                "xhr.open('GET', '" + blobUrl + "', true);" +
+                "xhr.responseType = 'blob';" +
+                "xhr.onload = function() {" +
+                "  if (xhr.status === 200 || xhr.status === 0) {" +
+                "    var reader = new FileReader();" +
+                "    reader.onloadend = function() {" +
+                "      var base64data = reader.result.split(',')[1];" +
+                "      AndroidBlobDownloader.saveBase64File(base64data, '" + safeFileName + "', '" + mimeType + "');" +
+                "    };" +
+                "    reader.readAsDataURL(xhr.response);" +
+                "  } else {" +
+                "    AndroidBlobDownloader.onDownloadFailed('Blob download failed with status: ' + xhr.status);" +
+                "  }" +
+                "};" +
+                "xhr.onerror = function() { AndroidBlobDownloader.onDownloadFailed('Blob download network error'); };" +
+                "xhr.send();" +
+                "})();";
+        webView.evaluateJavascript(script, null);
+    }
+
+    private void saveBase64ToDownloads(String base64Data, String fileName, String mimeType) {
+        try {
+            byte[] data = Base64.decode(base64Data, Base64.DEFAULT);
+            OutputStream outputStream;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+                values.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                Uri item = getContentResolver().insert(collection, values);
+                if (item == null) {
+                    throw new IOException("無法建立下載檔案");
+                }
+
+                outputStream = getContentResolver().openOutputStream(item);
+                if (outputStream == null) {
+                    throw new IOException("無法開啟輸出串流");
+                }
+                outputStream.write(data);
+                outputStream.flush();
+                outputStream.close();
+
+                values.clear();
+                values.put(MediaStore.Downloads.IS_PENDING, 0);
+                getContentResolver().update(item, values, null, null);
+            } else {
+                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!downloadsDir.exists() && !downloadsDir.mkdirs()) {
+                    throw new IOException("無法建立 Downloads 資料夾");
+                }
+                File outFile = new File(downloadsDir, fileName);
+                outputStream = new FileOutputStream(outFile);
+                outputStream.write(data);
+                outputStream.flush();
+                outputStream.close();
+            }
+
+            runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                    "下載完成: " + fileName, Toast.LENGTH_LONG).show());
+        } catch (Exception e) {
+            Log.e("CinnyWebView", "Blob save error: " + e.getMessage(), e);
+            runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                    "Blob 下載失敗: " + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
+    }
+
+    private class BlobDownloadInterface {
+        @JavascriptInterface
+        public void saveBase64File(String base64Data, String fileName, String mimeType) {
+            saveBase64ToDownloads(base64Data, fileName, mimeType);
+        }
+
+        @JavascriptInterface
+        public void onDownloadFailed(String error) {
+            runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                    "下載失敗: " + error, Toast.LENGTH_LONG).show());
+        }
     }
 
     private File createImageFile() throws IOException {
