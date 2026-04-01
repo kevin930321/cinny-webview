@@ -124,6 +124,12 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                injectCinnyLineHeightPatch();
+            }
         });
 
         // WebChromeClient - handle file uploads, permissions
@@ -288,6 +294,44 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void injectCinnyLineHeightPatch() {
+        String script = "(function() {" +
+                "  function applyLineHeightPatch() {" +
+                "    var selectors = [" +
+                "      '.text-message'," +
+                "      '.message__body'," +
+                "      '.message__content'," +
+                "      '.formatted-body'," +
+                "      '.markdown-body p'," +
+                "      '.markdown-body li'," +
+                "      '.markdown-body blockquote'," +
+                "      'article p'," +
+                "      'article li'," +
+                "      '[class*=message] p'," +
+                "      '[class*=message] li'" +
+                "    ].join(',');" +
+                "    document.querySelectorAll(selectors).forEach(function(el) {" +
+                "      if (el.dataset.echoLineHeightPatched === '1') return;" +
+                "      var computed = window.getComputedStyle(el).lineHeight;" +
+                "      var parsed = parseFloat(computed);" +
+                "      if (!isNaN(parsed)) {" +
+                "        el.style.lineHeight = (parsed * 1.1) + 'px';" +
+                "        el.dataset.echoLineHeightPatched = '1';" +
+                "      }" +
+                "    });" +
+                "  }" +
+                "  applyLineHeightPatch();" +
+                "  if (!window.__echoCinnyLineHeightObserver) {" +
+                "    window.__echoCinnyLineHeightObserver = new MutationObserver(function() {" +
+                "      applyLineHeightPatch();" +
+                "    });" +
+                "    window.__echoCinnyLineHeightObserver.observe(document.body, { childList: true, subtree: true });" +
+                "  }" +
+                "})();";
+
+        webView.evaluateJavascript(script, null);
     }
 
     private void downloadBlob(String blobUrl, String fileName, String mimeType) {
